@@ -43,8 +43,9 @@ That's it—your app is live!
 ### With Our API
 
 ```bash
-curl -X POST https://api.nexlayer.io/deploy \
-  -F "file=@nexlayer.yaml"
+curl -X POST https://app.nexlayer.io/startUserDeployment/my-app \
+  -H "Content-Type: text/x-yaml" \
+  --data-binary @nexlayer.yaml
 ```
 
 *No API key or authentication required for your first deployment! Nexlayer is ungated—just upload your YAML and go live instantly.*
