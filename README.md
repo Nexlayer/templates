@@ -60,12 +60,12 @@ The YAML file is like a blueprint for your app. It tells Nexlayer what to run an
 
 ### Basic Structure:
 
-```
+```yaml
 application:
-  name: "my-ai-app"
-  url: "www.myapp.com" # optional
+  name: "my-ai-app"  # 3-63 chars, lowercase + numbers/hyphens/dots
+  url: "www.myapp.com"  # optional - for permanent deployments
   pods:
-    - name: web
+    - name: "web"  # 2-63 chars, lowercase + numbers/hyphens only (no dots)
       image: "your-username/my-app:v1"
       servicePorts:
         - 80
@@ -73,12 +73,12 @@ application:
 
 ### Required Fields
 
-* `name`: A unique name for your app
+* `name`: A unique name for your app (3-63 characters)
 * `pods`: The list of containers that make up your app
 
 Each pod needs:
 
-* `name`: Lowercase, unique identifier
+* `name`: Lowercase, unique identifier (2-63 characters, no dots)
 * `image`: Hosted Docker image
 * `servicePorts`: At least one port
 
@@ -86,7 +86,7 @@ Each pod needs:
 
 * `url`: For permanent production apps
 * `path`: Route path for the web pod (e.g., "/")
-* `vars`: Environment variables
+* `vars`: Environment variables (all values must be strings)
 * `volumes`: Persistent storage
 * `secrets`: For API keys and credentials
 
@@ -111,40 +111,52 @@ Use `volumes` to persist data between restarts.
 
 ```yaml
 volumes:
-  - name: my-data
-    size: "1Gi"
+  - name: "my-data"
+    size: "1Gi"  # Only Mi or Gi supported
     mountPath: "/data"
 ```
 
-### Postgres Tip
+### PostgreSQL Setup (CRITICAL)
 
-Bad setup:
-
-```yaml
-mountPath: "/var/lib/postgresql/data"
-# PGDATA missing
-```
-
-Best setup:
+**DO NOT mount directly to the data directory:**
 
 ```yaml
-mountPath: "/var/lib/postgresql"
-vars:
-  PGDATA: "/var/lib/postgresql/data"
+# ❌ INCORRECT - Can prevent initialization
+volumes:
+  - name: "db-data"
+    size: "1Gi"
+    mountPath: "/var/lib/postgresql/data"  # DON'T DO THIS
+
+# ✅ CORRECT - Mount to parent directory
+- name: "db"
+  image: "postgres:14"
+  servicePorts:
+    - 5432
+  vars:
+    POSTGRES_USER: "user"
+    POSTGRES_PASSWORD: "pass"
+    POSTGRES_DB: "appdb"
+    PGDATA: "/var/lib/postgresql/data"  # Tell Postgres where to store data
+  volumes:
+    - name: "db-data"
+      size: "1Gi"
+      mountPath: "/var/lib/postgresql"  # Mount one level above PGDATA
 ```
 
-This ensures Postgres runs reliably.
+This ensures PostgreSQL can initialize properly and avoids conflicts with Kubernetes volume behavior.
 
 ---
 
 ## Keeping Secrets Safe (Like API Keys)
 
+**All secret fields are required:**
+
 ```yaml
 secrets:
-  - name: my-key
-    data: "my-super-secret-key"
-    mountPath: "/var/secrets"
-    fileName: "key.txt"
+  - name: "my-key"  # Required
+    data: "my-super-secret-key"  # Required
+    mountPath: "/var/secrets"  # Required
+    fileName: "key.txt"  # Required (not optional!)
 ```
 
 Read the secret in your app:
@@ -193,13 +205,13 @@ image: "ghcr.io/your-username/my-app:v1"
 
 ---
 
-### Public
+### Public Images
 
 ```yaml
 image: "your-username/my-app:v1"
 ```
 
-### Private
+### Private Images
 
 ```yaml
 application:
@@ -207,6 +219,9 @@ application:
     registry: "ghcr.io"
     username: "your-username"
     personalAccessToken: "your-token"
+  pods:
+    - name: "app"
+      image: "<% REGISTRY %>/your-username/my-app:v1"  # Use template
 ```
 
 ---
@@ -216,12 +231,12 @@ application:
 ### Self-Hosted
 
 ```yaml
-- name: ollama
+- name: "ollama"
   image: "ollama/ollama:latest"
   servicePorts:
     - 11434
   volumes:
-    - name: ollama-data
+    - name: "ollama-data"
       size: "5Gi"
       mountPath: "/root/.ollama"
 ```
@@ -230,11 +245,11 @@ application:
 
 ```yaml
 vars:
-  OPENAI_API_KEY: "<% SECRET_OPENAI_API_KEY %>"
+  OPENAI_API_KEY_PATH: "/var/secrets/openai/key.txt"
 secrets:
-  - name: openai-key
+  - name: "openai-key"
     data: "your-openai-key-here"
-    mountPath: "/var/secrets"
+    mountPath: "/var/secrets/openai"
     fileName: "key.txt"
 ```
 
@@ -243,10 +258,14 @@ secrets:
 ## Quick Tips to Avoid OOPS Moments
 
 * Always start with `application:`
-* Pod names must be unique and lowercase
+* App names: 3-63 chars (lowercase + numbers/hyphens/dots)
+* Pod names: 2-63 chars (lowercase + numbers/hyphens only, **no dots**)
 * Every pod needs `servicePorts`
 * Use `<pod-name>.pod` for internal communication
-* Set `PGDATA` properly for Postgres
+* PostgreSQL: Mount to `/var/lib/postgresql`, not `/var/lib/postgresql/data`
+* Secrets: All 4 fields are required (name, data, mountPath, fileName)
+* Volume sizes: Only `Mi` or `Gi` supported (not `Ti`)
+* Environment variables: All values must be strings
 
 ---
 
@@ -265,12 +284,13 @@ Start with a modern frontend. Deploy your static or server-rendered Next.js site
 
 ```yaml
 application:
-  name: "nexlayer-app" # Required: Globally unique app name
+  name: "hello-world-nextjs-app"  # Required: 3-63 chars, lowercase only
   pods:
-    - name: prisma  # 🔄 Prisma ORM — type-safe database access layer
-      image: "user-name/prisma:latest" # Public image — Nexlayer pulls this from Docker Hub
-      vars:
-        DATABASE_URL: "postgresql://postgres:password@database.pod:5432/mydb"
+    - name: "nextjs-nginx"
+      path: "/"
+      image: "ghcr.io/nexlayer/hello-world-nextjs:v0.0.1"  # Nexlayer official image
+      servicePorts:
+        - 80
 ```
 
 ---
@@ -278,18 +298,23 @@ application:
 ### Step 2 — Add Auth + Database
 
 **Tech:** Supabase (Auth + PostgreSQL)
-Add real users and persistent data using Supabase. Easily store accounts, profiles, and content.
+Add real users and persistent data using PostgreSQL. Easily store accounts, profiles, and content.
 
 ```yaml
 pods:
-  - name: db
+  - name: "db"
     image: "postgres:14"
     servicePorts:
       - 5432
     vars:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: pass
-      POSTGRES_DB: appdb
+      POSTGRES_USER: "user"
+      POSTGRES_PASSWORD: "pass"
+      POSTGRES_DB: "appdb"
+      PGDATA: "/var/lib/postgresql/data"
+    volumes:
+      - name: "db-data"
+        size: "1Gi"
+        mountPath: "/var/lib/postgresql"  # Mount to parent directory
 ```
 
 ---
@@ -301,9 +326,9 @@ Auto-generate your API with Prisma and define your database schema using elegant
 
 ```yaml
 pods:
-  - name: api
+  - name: "api"
     image: "ttl.sh/my-backend:1h"
-    path: /api
+    path: "/api"
     servicePorts:
       - 4000
     vars:
@@ -319,7 +344,7 @@ Let your users ask questions, summarize notes, or chat with their data — right
 
 ```yaml
 pods:
-  - name: openai
+  - name: "openai"
     # 🤖 OpenAI API wrapper (proxy or backend integration)
     image: "user-name/openai:latest"
     servicePorts:
@@ -327,10 +352,10 @@ pods:
     vars:
       OPENAI_API_KEY_PATH: "/var/secrets/openai/key.txt"
     secrets:
-      - name: openai-key
+      - name: "openai-key"
         data: "sk-......"
         mountPath: "/var/secrets/openai"
-        fileName: key.txt
+        fileName: "key.txt"  # Required field
 ```
 
 ---
@@ -341,55 +366,57 @@ Here's the full `nexlayer.yaml` with inline comments to explain what's happening
 
 ```yaml
 application:
-  name: "my-ai-app"  # 🔖 Unique name for your app deployment
+  name: "my-ai-app"  # 🔖 Unique name for your app deployment (3-63 chars)
 
   pods:
-    - name: web  # 🌐 Frontend pod (e.g., Next.js app)
+    - name: "web"  # 🌐 Frontend pod (e.g., Next.js app)
       image: "user-name/web:v1"
-      path: /  # Serves traffic at root URL
+      path: "/"  # Serves traffic at root URL
       servicePorts:
         - 3000
       vars:
         API_URL: "http://api.pod:4000"  # Connects to the backend pod
 
-    - name: db  # 🛢️ PostgreSQL database
+    - name: "db"  # 🛢️ PostgreSQL database
       image: "postgres:14"
       servicePorts:
         - 5432
       vars:
-        POSTGRES_USER: user
-        POSTGRES_PASSWORD: pass
-        POSTGRES_DB: appdb
+        POSTGRES_USER: "user"
+        POSTGRES_PASSWORD: "pass"
+        POSTGRES_DB: "appdb"
         PGDATA: "/var/lib/postgresql/data"  # Tells Postgres where to store data
       volumes:
-        - name: db-data
+        - name: "db-data"
           size: "1Gi"
           mountPath: "/var/lib/postgresql"  # One level above PGDATA to avoid init errors
 
-    - name: prisma  # 🧩 Prisma ORM layer for DB access
+    - name: "prisma"  # 🧩 Prisma ORM layer for DB access
       image: "user-name/prisma:latest"
+      servicePorts:
+        - 4001
       vars:
         DATABASE_URL: "postgresql://user:pass@db.pod:5432/appdb"  # Connects to database pod
 
-    - name: api  # ⚙️ Custom backend API (e.g., REST or GraphQL)
+    - name: "api"  # ⚙️ Custom backend API (e.g., REST or GraphQL)
       image: "ttl.sh/my-backend:1h"  # Temporary public image from ttl.sh
-      path: /api
+      path: "/api"
       servicePorts:
         - 4000
       vars:
         DATABASE_URL: "postgresql://user:pass@db.pod:5432/appdb"
 
-    - name: openai  # 🤖 AI service integration (e.g., OpenAI)
+    - name: "openai"  # 🤖 AI service integration (e.g., OpenAI)
       image: "user-name/openai:latest"
       servicePorts:
         - 3001
       vars:
         OPENAI_API_KEY_PATH: "/var/secrets/openai/key.txt"  # Env var pointing to mounted secret
       secrets:
-        - name: openai-key
+        - name: "openai-key"
           data: "sk-..."  # Your real OpenAI API key goes here
           mountPath: "/var/secrets/openai"
-          fileName: "key.txt"  # File name used inside the container
+          fileName: "key.txt"  # File name used inside the container (required)
 ```
 
 **Prebuilt:** Next.js frontend, Supabase auth, PostgreSQL DB, Prisma backend, and OpenAI agent — all live in minutes.
@@ -410,11 +437,11 @@ Here's how to go live fast with Nexlayer:
 1. **Make sure Docker Desktop is running**  
    This lets you build your container image.
 
-2. **Create a `Dockerfile`** for your frontend or game:
+2. **Create a `Dockerfile`** for your frontend or game
 
 3. **Build and push your image** to a public registry (like TTL.sh)
 
-4. **Get Nexlayer’s schema** to help create your YAML:
+4. **Get Nexlayer's schema** to help create your YAML:
 
     ```bash
     curl -X GET "https://app.nexlayer.io/schema"
@@ -424,10 +451,11 @@ Here's how to go live fast with Nexlayer:
 
     ```yaml
     application:
-      name: "my-game"
+      name: "my-game"  # 3-63 chars
       pods:
-        - name: web
+        - name: "web"  # 2-63 chars, no dots
           image: "ttl.sh/my-awesome-game:1h"
+          path: "/"
           servicePorts:
             - 3000
     ```
@@ -435,16 +463,16 @@ Here's how to go live fast with Nexlayer:
 6. **Deploy it using curl**:
 
     ```bash
-    curl -X POST "https://app.nexlayer.io/startUserDeployment" \
+    curl -X POST "https://app.nexlayer.io/startUserDeployment/my-game" \
       -H "Content-Type: text/x-yaml" \
       --data-binary @nexlayer.yaml
     ```
 
-7. **🎉 Done!** You’ll get a live URL instantly.
+7. **🎉 Done!** You'll get a live URL instantly.
 
-Conclusion
+### Conclusion
 
-You’ve just gone from a local app or AI idea to a global launch-ready product in minutes. Whether you’re a builder experimenting in Cursor, an AI agent automating the flow, or a startup preparing to scale, Nexlayer turns prototypes into products instantly.
+You've just gone from a local app or AI idea to a global launch-ready product in minutes. Whether you're a builder experimenting in Cursor, an AI agent automating the flow, or a startup preparing to scale, Nexlayer turns prototypes into products instantly.
 
 ## Support
 
