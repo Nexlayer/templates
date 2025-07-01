@@ -45,8 +45,9 @@
 6. **Deploy with the CLI or API:**
 
 ```bash
-curl -X POST https://api.nexlayer.io/deploy \
-  -F "file=@nexlayer.yaml"
+curl -X POST https://app.nexlayer.io/startUserDeployment/my-app \
+  -H "Content-Type: text/x-yaml" \
+  --data-binary @nexlayer.yaml
 ```
 
 > **Tip:** No API key required for first deployment! Nexlayer is ungated—just upload your YAML and go live instantly.
@@ -123,12 +124,12 @@ Let's get your first app running on Nexlayer right now:
 
 ```yaml
 application: # The name of the deployment
-  name: "my-first-app" # Required: Globally unique application identifier
+  name: "my-first-app" # Required: 3-63 chars, globally unique application identifier
   # url: "www.example.ai"  # Optional: Include only for permanent deployments
   pods: # Required: List of containers
-    - name: webapp # Required: Must start with lowercase letter, use only alphanumeric, hyphens, or dots
+    - name: "webapp" # Required: 2-63 chars, lowercase + hyphens only (no dots)
       image: "your-username/my-app:v1.2.0" # Required: Docker image (must be hosted on registry)
-      path: / # Optional: URL path where the service is accessible (only required for web-facing pods)
+      path: "/" # Optional: URL path where the service is accessible (only required for web-facing pods)
       servicePorts: # Required: List of ports exposed by this pod
         - 80 # Format: Simple list of integers
 ```
@@ -145,28 +146,28 @@ Nexlayer YAML has a simple structure:
 
 ```
 application
-├── name: Your app's name
+├── name: Your app's name (3-63 chars)
 ├── url: Your app's URL (optional)
 ├── registryLogin (optional for private images)
 └── pods: List of containers
     ├── Pod 1 (like a web server)
-    │   ├── name: pod name
+    │   ├── name: pod name (2-63 chars, no dots)
     │   ├── image: container image
     │   ├── path: web route
     │   ├── servicePorts: exposed ports
     │   │   └── - port number
-    │   ├── vars: environment variables
-    │   │   ├── ENV_VAR1: value1
-    │   │   └── ENV_VAR2: value2
+    │   ├── vars: environment variables (all string values)
+    │   │   ├── ENV_VAR1: "value1"
+    │   │   └── ENV_VAR2: "value2"
     │   ├── volumes: persistent storage
     │   │   └── - name: volume name
-    │   │       ├── size: storage size
+    │   │       ├── size: storage size (Mi or Gi only)
     │   │       └── mountPath: storage location
     │   └── secrets: sensitive data
     │       └── - name: secret name
     │           ├── data: secret content
     │           ├── mountPath: secret location
-    │           └── fileName: secret file name
+    │           └── fileName: secret file name (required)
     │
     ├── Pod 2 (like a database)
     │   └── ...
@@ -189,6 +190,8 @@ application:
   pods:
     - name: "app"
       image: "your-username/my-app:v1.2.0" # Your public image on Docker Hub
+      servicePorts:
+        - 3000
 ```
 
 If you omit the tag (e.g., your-username/my-app), Docker Hub defaults to :latest.
@@ -204,6 +207,8 @@ application:
   pods:
     - name: "app"
       image: "ghcr.io/your-username/my-app:v1.2.0" # Your public image on GHCR.io
+      servicePorts:
+        - 3000
 ```
 
 Without a tag (e.g., ghcr.io/your-username/my-app), it defaults to :latest.
@@ -221,6 +226,8 @@ application:
   pods:
     - name: "app"
       image: "<% REGISTRY %>/your-username/my-app:v1.2.0" # Private image
+      servicePorts:
+        - 3000
 ```
 
 Omitting the tag (e.g., <% REGISTRY %>/your-username/my-app) defaults to :latest.
@@ -306,12 +313,12 @@ application
     │   ├── vars:
     │   │   ├── DATABASE_URL: "postgresql://postgres:password@postgres.pod:5432/mydb"
     │   │   ├── PINECONE_URL: "http://pinecone.pod:8080"
-    │   │   └── OPENAI_API_KEY: "sk-..." # Set via secrets instead for production
+    │   │   └── OPENAI_API_KEY_PATH: "/var/secrets/openai/key.txt"
     │   └── secrets:
     │       └── name: "api-keys"
     │           data: "your-openai-key-here"
-    │           mountPath: "/app/secrets"
-    │           fileName: "openai.key"
+    │           mountPath: "/var/secrets/openai"
+    │           fileName: "key.txt"
     ├── postgres-db
     │   ├── name: "postgres"
     │   ├── image: "postgres:14"
@@ -323,7 +330,7 @@ application
     │   └── volumes:
     │       └── name: "postgres-data"
     │           size: "5Gi"
-    │           mountPath: "/var/lib/postgresql/data"
+    │           mountPath: "/var/lib/postgresql"
     └── pinecone-vector-db
         ├── name: "pinecone"
         ├── image: "pinecone/pinecone-server:latest"
@@ -342,11 +349,11 @@ This visualization helps you understand how different elements of your configura
 
 ```yaml
 application:
-  name: "my-website" # Required: Globally unique application name
+  name: "my-website" # Required: 3-63 chars, globally unique application name
   pods:
-    - name: web # Required: Unique pod name
-      image: your-username/my-app:v1.2.0 # Required: Docker image from registry
-      path: / # Optional: URL route (must start with /)
+    - name: "web" # Required: 2-63 chars, unique pod name (no dots)
+      image: "your-username/my-app:v1.2.0" # Required: Docker image from registry
+      path: "/" # Optional: URL route (must start with /)
       servicePorts: # Required: List of exposed ports
         - 80 # Format: Simple integer
 ```
@@ -357,23 +364,23 @@ application:
 application:
   name: "fullstack-app"
   pods:
-    - name: frontend
+    - name: "frontend"
       image: "your-username/frontend-app:v1.0.0" # Your public image on Docker Hub
-      path: /
+      path: "/"
       servicePorts:
         - 3000
-      vars: # Environment variables as key-value pairs
+      vars: # Environment variables as key-value pairs (all values must be strings)
         API_URL: "http://backend.pod:4000" # Reference other pods with .pod suffix
 
-    - name: backend
+    - name: "backend"
       image: "your-username/backend-app:v1.0.0" # Your public image on Docker Hub
-      path: /api # Path must start with /
+      path: "/api" # Path must start with /
       servicePorts:
         - 4000
       vars:
         DATABASE_URL: "postgresql://user:pass@database.pod:5432/mydb" # Proper inter-pod reference
 
-    - name: database
+    - name: "database"
       image: "postgres:14" # Standard database image from Docker Hub
       servicePorts:
         - 5432
@@ -382,9 +389,9 @@ application:
         POSTGRES_PASSWORD: "pass"
         POSTGRES_DB: "mydb"
       volumes:
-        - name: db-data # Unique volume name
-          size: "1Gi" # Storage size with units (Mi, Gi, Ti)
-          mountPath: "/var/lib/postgresql/data" # Must start with /
+        - name: "db-data" # Unique volume name
+          size: "1Gi" # Storage size with units (Mi or Gi only)
+          mountPath: "/var/lib/postgresql" # CRITICAL: Mount to parent directory, not /data
 ```
 
 ## 🧠 AI Application Template
@@ -393,15 +400,15 @@ application:
 application:
   name: "ai-app"
   pods:
-    - name: frontend
+    - name: "frontend"
       image: "your-username/ai-frontend:v1.0.0" # Your public image on Docker Hub
-      path: /
+      path: "/"
       servicePorts:
         - 3000
       vars:
         API_URL: "http://ai-backend.pod:5000" # Note .pod suffix for pod reference
 
-    - name: ai-backend
+    - name: "ai-backend"
       image: "your-username/ai-backend:v1.0.0" # Your public image on Docker Hub
       servicePorts:
         - 5000
@@ -409,16 +416,16 @@ application:
         MODEL_PATH: "/models" # Path starts with /
         VECTOR_DB: "http://vector-db.pod:8080" # Note .pod suffix
       volumes:
-        - name: model-storage
+        - name: "model-storage"
           size: "5Gi"
           mountPath: "/models" # Path starts with /
 
-    - name: vector-db
+    - name: "vector-db"
       image: "weaviate/weaviate:latest" # Standard vector database image
       servicePorts:
         - 8080
       volumes:
-        - name: vector-data
+        - name: "vector-data"
           size: "2Gi"
           mountPath: "/data" # Path starts with /
 ```
@@ -427,14 +434,14 @@ application:
 
 | Key              | Definition                                                                                                                                                                                                            | Why it matters                                                                                                                                                                                            | Examples                                                                                                                                   |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| **name**         | A unique name to identify this service.                                                                                                                                                                               | Each little machine (pod) must work correctly for your app to run—if one machine breaks, your whole app might not work and your friends wouldn't be able to use it.                                       | `name: postgres`                                                                                                                           |
+| **name**         | A unique name to identify this service (2-63 chars, lowercase + hyphens only, no dots).                                                                                                                                                               | Each little machine (pod) must work correctly for your app to run—if one machine breaks, your whole app might not work and your friends wouldn't be able to use it.                                       | `name: "postgres"`                                                                                                                           |
 | **image**        | Specifies the Docker container image (including repository info) to deploy for that pod. The image must be hosted and, for private images, follow the `<% REGISTRY %>/<...>` format.                                  | This tells Nexlayer exactly which pre-built container to use for your live app. Choosing a solid image means your app runs in a proven, ready-to-go environment for all your users.                       | `image: "postgres:latest"` or `image: "cooldb/image:1.0"`                                                                                  |
 | **path**         | For web-facing pods, defines the external URL route where users access the service.                                                                                                                                   | This sets the web address path where users access your service. A well-defined path means your website, service or API is easily found, making your app look friendly and professional on Nexlayer Cloud. | `path: "/"` or `path: "/api"`                                                                                                              |
 | **servicePorts** | Defines the ports for external access or inter-service communication.                                                                                                                                                 | These ports are like the doorways that let users (or other services) connect to your app. Set them correctly, and your live app will be easily accessible and reliable on the web.                        | `servicePorts: - 5432`                                                                                                                     |
-| **vars**         | Runtime environment variables defined as direct key-value pairs. Use `<pod-name>.pod` to reference other pods or `<% URL %>` for the deployment's base URL.                                                           | These are the settings that tell your live app how to connect to databases, APIs, and more. When they're set up right, your app adapts perfectly to the cloud environment, keeping your users happy.      | `vars:`<br>`  POSTGRES_USER: postgres`<br>`  POSTGRES_PASSWORD: password`<br>`  POSTGRES_DB: mydb`<br>`  API_URL: http://backend.pod:3000` |
-| **volumes**      | Optional persistent storage settings that ensure data isn't lost between restarts. Each volume includes a name, size, and a mountPath.                                                                                | Volumes are like cloud hard drives for your app. They store important data (like database files) so that nothing is lost when your app updates or restarts, keeping your users' data safe.                | `volumes: - name: postgres-data size: 5Gi mountPath: /var/lib/postgresql/data`                                                             |
-| **mountPath**    | Within a volume configuration, specifies the internal file system location where the volume attaches. Must start with a "/".                                                                                          | This tells Nexlayer exactly where to plug in your volume within a running container. When set correctly, your live app can read and save data smoothly—ensuring a seamless user experience.               | `mountPath: "/var/lib/postgresql/data"`                                                                                                    |
-| **secrets**      | Securely mount sensitive data into your app's configuration files. Each secret includes a name, data (raw text or Base64-encoded), a mountPath (must start with "/"), and a fileName to name the mounted secret file. | Secrets keep your sensitive info locked away safely. By using secrets, you protect passwords and keys while ensuring your app runs securely—giving your users peace of mind.                              | `secrets: - name: nextauth-secret data: "myrandomsecret" mountPath: "/var/secrets/nextauth" fileName: secret.txt`                          |
+| **vars**         | Runtime environment variables defined as direct key-value pairs with string values. Use `<pod-name>.pod` to reference other pods.                                                           | These are the settings that tell your live app how to connect to databases, APIs, and more. When they're set up right, your app adapts perfectly to the cloud environment, keeping your users happy.      | `vars:`<br>`  POSTGRES_USER: "postgres"`<br>`  POSTGRES_PASSWORD: "password"`<br>`  POSTGRES_DB: "mydb"`<br>`  API_URL: "http://backend.pod:3000"` |
+| **volumes**      | Optional persistent storage settings that ensure data isn't lost between restarts. Each volume includes a name, size (Mi or Gi only), and a mountPath.                                                                                | Volumes are like cloud hard drives for your app. They store important data (like database files) so that nothing is lost when your app updates or restarts, keeping your users' data safe.                | `volumes: - name: "postgres-data" size: "5Gi" mountPath: "/var/lib/postgresql"`                                                             |
+| **mountPath**    | Within a volume configuration, specifies the internal file system location where the volume attaches. Must start with a "/". For PostgreSQL, use `/var/lib/postgresql`, not `/var/lib/postgresql/data`.                                                                          | This tells Nexlayer exactly where to plug in your volume within a running container. When set correctly, your live app can read and save data smoothly—ensuring a seamless user experience.               | `mountPath: "/var/lib/postgresql"`                                                                                    |
+| **secrets**      | Securely mount sensitive data into your app's configuration files. Each secret includes a name, data (raw text or Base64-encoded), a mountPath (must start with "/"), and a fileName (required) to name the mounted secret file. | Secrets keep your sensitive info locked away safely. By using secrets, you protect passwords and keys while ensuring your app runs securely—giving your users peace of mind.                              | `secrets: - name: "nextauth-secret" data: "myrandomsecret" mountPath: "/var/secrets/nextauth" fileName: "secret.txt"`                          |
 
 > **Note:** There are additional configuration options available in the schema that are managed internally by Nexlayer.
 
@@ -446,13 +453,11 @@ The magic of Nexlayer: pods automatically discover each other! Use `<pod-name>.p
 vars:
   DATABASE_URL: "postgresql://postgres:postgres@database.pod:5432/myapp" # CORRECT: Using .pod suffix
   API_URL: "http://api.pod:8000" # References another pod named "api"
-  SITE_URL: "<% URL %>/dashboard" # References the deployment's base URL
 ```
 
 You can use:
 
 - `<pod-name>.pod` to reference other pods (required when connecting services)
-- `<% URL %>` to reference the URL of your deployment site
 
 ## 💾 Storing Data with Volumes
 
@@ -460,43 +465,41 @@ Keep your data safe between restarts:
 
 ```yaml
 volumes:
-  - name: my-data # Give it a name
-    size: "1Gi" # How much space (1Gi = 1 Gigabyte)
+  - name: "my-data" # Give it a name
+    size: "1Gi" # How much space (Mi or Gi only)
     mountPath: "/data" # Where to find it in your container (must start with /)
 ```
 
-### 🧠 Do I Need to Use `mountPath` Like `/var/lib/postgresql/data`?
+### 🧠 CRITICAL: PostgreSQL Volume Mount
 
-**Short answer: Not always.**
-
-Nexlayer simplifies how volumes are mounted by handling common defaults internally.
-
-If you're using a standard, publicly hosted image like `postgres`, `redis`, or `mongo`, Nexlayer **automatically mounts volumes to the correct internal paths** — so you don't need to explicitly specify `mountPath` unless:
-
-- ✅ You're using a **custom image** that expects data in a specific directory
-- ✅ You have **explicit logic in your app** that reads/writes from a known file path
-- ✅ You're mounting **secrets** to a specific location in the filesystem
+**DO NOT mount PostgreSQL volumes directly to `/var/lib/postgresql/data`**
 
 ```yaml
-# ✅ Optional if using a known image like postgres
+# ❌ INCORRECT - Can prevent initialization
 volumes:
-  - name: postgres-data
+  - name: "postgres-data"
     size: "5Gi"
-    # mountPath: "/var/lib/postgresql/data"  # Optional – Nexlayer auto-mounts for postgres
+    mountPath: "/var/lib/postgresql/data"  # DON'T DO THIS
+
+# ✅ CORRECT - Mount to parent directory
+volumes:
+  - name: "postgres-data"
+    size: "5Gi"
+    mountPath: "/var/lib/postgresql"  # PostgreSQL will create data/ subdirectory
 ```
 
-The Nexlayer platform abstracts path requirements for standard services. Keep your YAML cleaner by omitting mountPath unless your container specifically needs it.
+The Nexlayer platform (based on Kubernetes) may create system directories like `lost+found` in mounted volumes, which can prevent PostgreSQL from initializing properly if mounted directly to the data directory.
 
 ## 🔐 Keeping Secrets Safe
 
-Store API keys, passwords, and other sensitive data securely:
+Store API keys, passwords, and other sensitive data securely. **All secret fields are required:**
 
 ```yaml
 secrets:
-  - name: api-keys # Unique name within pod
-    data: "my-super-secret-api-key" # Actual secret value
-    mountPath: "/var/secrets" # Must start with /
-    fileName: "api-key.txt" # Name of the file containing the secret
+  - name: "api-keys" # Unique name within pod (required)
+    data: "my-super-secret-api-key" # Actual secret value (required)
+    mountPath: "/var/secrets" # Must start with / (required)
+    fileName: "api-key.txt" # Name of the file containing the secret (required)
 ```
 
 Your app can then read `/var/secrets/api-key.txt` to get the secret value.
@@ -513,7 +516,7 @@ application:
     username: "your-username" # Registry username (case sensitive!)
     personalAccessToken: "my-token" # Read-only registry Personal Access Token
   pods:
-    - name: private-service
+    - name: "private-service"
       # For private images use the following schema exactly as shown:
       # Images are tagged as private if they include '<% REGISTRY %>'
       image: "<% REGISTRY %>/your-username/private-image:latest" # This gets replaced with the registry above
@@ -533,7 +536,7 @@ Note that the username in the image path must match exactly (including case) wit
    ✅ Each pod name must be unique
 
 3. ❌ **Incorrect pod name format**  
-   ✅ Pod names must start with a lowercase letter and can include only alphanumeric characters, hyphens, or dots
+   ✅ Pod names must start with a lowercase letter and can include only alphanumeric characters or hyphens (no dots)
 
 4. ❌ **Mixing up `path` and `mountPath`**  
    ✅ `path` is for URL routes (like `/api`), `mountPath` is for filesystem paths (like `/data`)
@@ -543,23 +546,25 @@ Note that the username in the image path must match exactly (including case) wit
 
 6. ❌ **Incorrect pod references**  
    ✅ Use `<pod-name>.pod` to connect services (not IP addresses)
+
 7. ❌ **Trying to use Kubernetes or Docker Compose syntax**  
    ✅ Nexlayer has its own unique YAML schema
 
-8. ❌ **DO NOT add `resources.limits` manually to your YAML.**  
-   ✅ Nexlayer **automatically** configures CPU & Memory for each service.  
-   ✅ If you add `resources.limits` manually, it will be ignored.
+8. ❌ **PostgreSQL volume mount errors**  
+   ✅ Mount to `/var/lib/postgresql`, not `/var/lib/postgresql/data`
 
-9. ❌ **Misunderstanding entrypoint and command behavior**  
-   ✅ If entrypoint and command are explicitly defined in Docker Compose, the Nexlayer-CLI will translate them into Nexlayer YAML.  
-   ✅ If they are not defined in Docker Compose, the Nexlayer-CLI omits them, defaulting to the Dockerfile's built-in values.
+9. ❌ **Missing fileName in secrets**  
+   ✅ fileName is required for all secrets
 
-10. ❌ **Using array format for environment variables**  
+10. ❌ **Wrong volume size units**  
+    ✅ Only `Mi` or `Gi` supported (not `Ti`)
+
+11. ❌ **Using array format for environment variables**  
     ✅ Use direct key-value pairs for environment variables:
 
     ```yaml
     vars:
-      ENV_VAR_KEY: "value" # CORRECT
+      ENV_VAR_KEY: "value" # CORRECT - string value
     ```
 
     ```yaml
@@ -568,27 +573,28 @@ Note that the username in the image path must match exactly (including case) wit
         value: "value"
     ```
 
-11. ❌ **Trying to use local Docker images**  
+12. ❌ **Trying to use local Docker images**  
     ✅ All images must be hosted on a registry (Docker Hub, GHCR.io, etc.)
-12. ❌ **Case mismatch between registry username and image path**  
+
+13. ❌ **Case mismatch between registry username and image path**  
     ✅ Ensure the username in your image path exactly matches the registry username (case sensitive)
 
 ## 🎮 Full Example: Gaming Leaderboard App
 
 ```yaml
 application:
-  name: "game-leaderboard" # Required: Application name
+  name: "game-leaderboard" # Required: Application name (3-63 chars)
   pods:
-    - name: frontend # Required: Unique pod name
+    - name: "frontend" # Required: Unique pod name (2-63 chars, no dots)
       image: "your-username/game-ui:v1.0.0" # Your public image on Docker Hub
       path: "/" # URL route (must start with /)
       servicePorts: # Required: List of exposed ports
         - 3000
-      vars: # Environment variables as key-value pairs
+      vars: # Environment variables as key-value pairs (all strings)
         API_URL: "http://api.pod:8080" # Note .pod suffix
         WEBSOCKET_URL: "ws://api.pod:8080/ws" # Note .pod suffix
 
-    - name: api
+    - name: "api"
       image: "your-username/game-api:v1.0.0" # Your public image on Docker Hub
       path: "/api" # Path starts with /
       servicePorts:
@@ -598,21 +604,21 @@ application:
         REDIS_URL: "redis://redis.pod:6379" # Note .pod suffix
         JWT_SECRET: "supersecretkey"
 
-    - name: mongo
+    - name: "mongo"
       image: "mongo:latest" # Standard database image from Docker Hub
       servicePorts:
         - 27017
       volumes:
-        - name: mongo-data
-          size: "2Gi" # Storage size with units
+        - name: "mongo-data"
+          size: "2Gi" # Storage size with units (Mi or Gi only)
           mountPath: "/data/db" # Must start with /
 
-    - name: redis
+    - name: "redis"
       image: "redis:latest" # Standard cache image from Docker Hub
       servicePorts:
         - 6379
       volumes:
-        - name: redis-data
+        - name: "redis-data"
           size: "1Gi"
           mountPath: "/data" # Must start with /
 ```
@@ -625,7 +631,7 @@ application:
 application:
   name: "social-media"
   pods:
-    - name: frontend
+    - name: "frontend"
       image: "your-username/social-frontend:v1.0.0"
       path: "/"
       servicePorts:
@@ -634,7 +640,7 @@ application:
         API_URL: "http://api.pod:8000" # Note .pod suffix
         MEDIA_URL: "http://media.pod:9000" # Note .pod suffix
 
-    - name: api
+    - name: "api"
       image: "your-username/social-api:v1.0.0"
       path: "/api" # Path starts with /
       servicePorts:
@@ -644,7 +650,7 @@ application:
         REDIS_URL: "redis://redis.pod:6379" # Note .pod suffix
         MEDIA_SERVICE: "http://media.pod:9000" # Note .pod suffix
 
-    - name: media
+    - name: "media"
       image: "your-username/media-service:v1.0.0"
       path: "/media" # Path starts with /
       servicePorts:
@@ -652,11 +658,11 @@ application:
       vars:
         STORAGE_PATH: "/data/media" # Path starts with /
       volumes:
-        - name: media-storage
+        - name: "media-storage"
           size: "10Gi"
           mountPath: "/data/media" # Must start with /
 
-    - name: postgres
+    - name: "postgres"
       image: "postgres:14"
       servicePorts:
         - 5432
@@ -665,16 +671,16 @@ application:
         POSTGRES_PASSWORD: "password"
         POSTGRES_DB: "socialdb"
       volumes:
-        - name: postgres-data
+        - name: "postgres-data"
           size: "5Gi"
-          mountPath: "/var/lib/postgresql/data" # Must start with /
+          mountPath: "/var/lib/postgresql" # CRITICAL: Mount to parent directory
 
-    - name: redis
+    - name: "redis"
       image: "redis:latest"
       servicePorts:
         - 6379
       volumes:
-        - name: redis-data
+        - name: "redis-data"
           size: "1Gi"
           mountPath: "/data" # Must start with /
 ```
@@ -685,7 +691,7 @@ application:
 application:
   name: "ecommerce"
   pods:
-    - name: storefront
+    - name: "storefront"
       image: "your-username/store-frontend:v2.1.0"
       path: "/"
       servicePorts:
@@ -694,7 +700,7 @@ application:
         API_URL: "http://api.pod:4000" # Note .pod suffix
         STRIPE_PUBLIC_KEY: "pk_test_123"
 
-    - name: admin
+    - name: "admin"
       image: "your-username/admin-panel:v2.1.0"
       path: "/admin" # Path starts with /
       servicePorts:
@@ -702,7 +708,7 @@ application:
       vars:
         API_URL: "http://api.pod:4000" # Note .pod suffix
 
-    - name: api
+    - name: "api"
       image: "your-username/ecommerce-api:v2.1.0"
       path: "/api" # Path starts with /
       servicePorts:
@@ -711,12 +717,14 @@ application:
         DATABASE_URL: "postgresql://postgres:password@postgres.pod:5432/shopdb" # Note .pod suffix
         REDIS_URL: "redis://redis.pod:6379" # Note .pod suffix
         ELASTICSEARCH_URL: "http://elasticsearch.pod:9200" # Note .pod suffix
+        STRIPE_SECRET_PATH: "/app/secrets/stripe.key"
       secrets:
-        - name: stripe-key
+        - name: "stripe-key"
           data: "sk_test_your_stripe_secret_key"
           mountPath: "/app/secrets" # Must start with /
+          fileName: "stripe.key" # Required field
 
-    - name: postgres
+    - name: "postgres"
       image: "postgres:14"
       servicePorts:
         - 5432
@@ -725,28 +733,28 @@ application:
         POSTGRES_PASSWORD: "password"
         POSTGRES_DB: "shopdb"
       volumes:
-        - name: postgres-data
+        - name: "postgres-data"
           size: "10Gi"
-          mountPath: "/var/lib/postgresql/data" # Must start with /
+          mountPath: "/var/lib/postgresql" # CRITICAL: Mount to parent directory
 
-    - name: redis
+    - name: "redis"
       image: "redis:latest"
       servicePorts:
         - 6379
       volumes:
-        - name: redis-data
+        - name: "redis-data"
           size: "2Gi"
           mountPath: "/data" # Must start with /
 
-    - name: elasticsearch
+    - name: "elasticsearch"
       image: "elasticsearch:8.6.0"
       servicePorts:
         - 9200
       vars:
-        discovery.type: "single-node"
-        ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+        "discovery.type": "single-node"
+        "ES_JAVA_OPTS": "-Xms512m -Xmx512m"
       volumes:
-        - name: es-data
+        - name: "es-data"
           size: "20Gi"
           mountPath: "/usr/share/elasticsearch/data" # Must start with /
 ```
@@ -874,7 +882,7 @@ For advanced users, here's a streamlined, production-ready deployment flow:
 6. **Deploy using the API (no auth required for first deployment):**
 
    ```bash
-   curl -X POST https://api.nexlayer.io/startUserDeployment \
+   curl -X POST https://app.nexlayer.io/startUserDeployment/my-app \
      -H "Content-Type: text/x-yaml" \
      --data-binary @nexlayer.yaml
    ```
@@ -918,7 +926,7 @@ application:
     username: "your-username"
     personalAccessToken: "your-token"
   pods:
-    - name: app
+    - name: "app"
       image: "<% REGISTRY %>/your-username/my-app:v1"
       servicePorts:
         - 3000
@@ -933,51 +941,52 @@ Nexlayer supports both self-hosted AI models (running as pods) and API-only mode
 Run as pods in your cluster (e.g., Ollama, Hugging Face Transformers):
 ```yaml
 pods:
-  - name: ollama
+  - name: "ollama"
     image: "ollama/ollama:latest"
     servicePorts:
       - 11434
     volumes:
-      - name: ollama-data
+      - name: "ollama-data"
         size: "5Gi"
         mountPath: "/root/.ollama"
 ```
 Connect to it using `<pod-name>.pod` (e.g., `ollama.pod:11434`).
 
 **API-Only AI Models**
-For external services (e.g., OpenAI), add the API key to your app's pod:
+For external services (e.g., OpenAI), add the API key as a secret:
 ```yaml
 pods:
-  - name: backend
+  - name: "backend"
     image: "your-username/backend:v1"
     servicePorts:
       - 5000
     vars:
-      OPENAI_API_KEY: "<% SECRET_OPENAI_API_KEY %>"
+      OPENAI_API_KEY_PATH: "/var/secrets/openai/key.txt"
     secrets:
-      - name: openai-key
+      - name: "openai-key"
         data: "your-openai-key-here"
-        mountPath: "/var/secrets"
-        fileName: "openai-key.txt"
+        mountPath: "/var/secrets/openai"
+        fileName: "key.txt"
 ```
 
 **Quick Guide: Self-Hosted vs. API-Only**
 - Self-Hosted (Add as Pods): Ollama, Hugging Face Transformers, PyTorch, TensorFlow
-- API-Only (Use Keys): OpenAI, Claude, Perplexity AI
+- API-Only (Use Secrets): OpenAI, Claude, Perplexity AI
 
 ---
 
 ## ⚡ Quick Tips to Avoid OOPS Moments
 - Always start with `application:`—it's the root of your YAML.
 - Don't reuse pod names—each must be unique.
-- Pod names are lowercase—use letters, numbers, hyphens, or dots only.
+- Pod names are lowercase—use letters, numbers, or hyphens only (no dots).
 - Set `servicePorts`—every pod needs at least one port.
 - Use `<pod-name>.pod` to connect pods.
+- PostgreSQL: Mount to `/var/lib/postgresql`, not `/var/lib/postgresql/data`
 
 If something goes wrong:
 - **Image won't load?** Check your image name and tag.
 - **Pods can't connect?** Make sure your `<pod-name>.pod` matches the pod's name.
-- **Postgres crashing?** Check `PGDATA` and `mountPath` (see Saving Data section).
+- **Postgres crashing?** Check volume mount path (see Storing Data section).
 
 ---
 
@@ -998,9 +1007,9 @@ If something goes wrong:
   - Impact: Conflicts prevent deployment.
   - Fix: Ensure every pod has a unique name.
 - **Invalid Pod Name Format**
-  - Issue: Pod names must start with a lowercase letter and use only alphanumeric characters, hyphens, or dots.
+  - Issue: Pod names must start with a lowercase letter and use only alphanumeric characters or hyphens (no dots).
   - Impact: Invalid names cause deployment errors.
-  - Fix: Use valid names like `web-app`, not `WebApp`.
+  - Fix: Use valid names like `web-app`, not `web.app`.
 - **Forgetting `servicePorts`**
   - Issue: Not defining `servicePorts` for a pod.
   - Impact: Pod can't communicate internally or externally.
@@ -1049,7 +1058,7 @@ If something goes wrong:
   - Fix: Use the `secrets` section instead.
   ```yaml
   secrets:
-    - name: api-key
+    - name: "api-key"
       data: "my-secret-key"
       mountPath: "/var/secrets"
       fileName: "key.txt"
@@ -1063,27 +1072,17 @@ If something goes wrong:
   with open('/var/secrets/key.txt', 'r') as f:
       api_key = f.read().strip()
   ```
-- **Not Referencing Secrets in `vars`**
-  - Issue: Forgetting to use `<% SECRET_NAME %>` in environment variables.
-  - Impact: Secrets aren't passed to the app.
-  - Fix: Use the correct placeholder syntax.
-  ```yaml
-  vars:
-    OPENAI_API_KEY: "<% SECRET_OPENAI_API_KEY %>"
-  ```
 
 ### 4. Data Storage & Volumes
-- **Postgres `mountPath` and `PGDATA` Misconfiguration**
-  - Issue: Incorrect `mountPath` or missing `PGDATA` for Postgres.
+- **Postgres `mountPath` Misconfiguration**
+  - Issue: Mounting to `/var/lib/postgresql/data` instead of `/var/lib/postgresql`.
   - Impact: Postgres fails to start or loses data on restart.
-  - Fix: Mount one level above and set `PGDATA` explicitly.
+  - Fix: Mount to parent directory and let PostgreSQL create the data subdirectory.
   ```yaml
   volumes:
-    - name: db-data
+    - name: "db-data"
       size: "1Gi"
       mountPath: "/var/lib/postgresql"
-  vars:
-    PGDATA: "/var/lib/postgresql/data"
   ```
 - **No Volumes for Persistent Data**
   - Issue: Not adding volumes for data-storing pods (e.g., databases).
@@ -1091,7 +1090,7 @@ If something goes wrong:
   - Fix: Always configure volumes for persistence.
   ```yaml
   volumes:
-    - name: data
+    - name: "data"
       size: "1Gi"
       mountPath: "/data"
   ```
@@ -1104,15 +1103,15 @@ If something goes wrong:
 - **Treating API-Only Models as Pods**
   - Issue: Deploying external APIs (e.g., OpenAI) as pods.
   - Impact: Adds complexity and fails to connect.
-  - Fix: Use `vars` and `secrets` for API keys instead.
+  - Fix: Use `secrets` for API keys instead.
   ```yaml
   vars:
-    OPENAI_API_KEY: "<% SECRET_OPENAI_API_KEY %>"
+    OPENAI_API_KEY_PATH: "/var/secrets/openai/key.txt"
   secrets:
-    - name: openai-key
+    - name: "openai-key"
       data: "your-key-here"
-      mountPath: "/var/secrets"
-      fileName: "openai-key.txt"
+      mountPath: "/var/secrets/openai"
+      fileName: "key.txt"
   ```
 - **No Volumes for Self-Hosted Models**
   - Issue: Missing volumes for self-hosted AI models (e.g., model weights).
@@ -1120,7 +1119,7 @@ If something goes wrong:
   - Fix: Add a volume for storage.
   ```yaml
   volumes:
-    - name: model-data
+    - name: "model-data"
       size: "5Gi"
       mountPath: "/models"
   ```
@@ -1133,28 +1132,6 @@ If something goes wrong:
     - 11434
   ```
 
-### 6. Deployment & Automation
-- **Wrong API Key in curl Command**
-  - Issue: Using an incorrect or expired API key for deployment.
-  - Impact: Authentication errors halt deployment.
-  - Fix: Validate the key in the command.
-  ```bash
-  curl -X POST https://api.nexlayer.io/deploy \
-    -H "Authorization: Bearer YOUR_API_KEY" \
-    -F "file=@nexlayer.yaml"
-  ```
-- **Missing `url` for Permanent Deployments**
-  - Issue: Not specifying `url` for production apps.
-  - Impact: Deployment is temporary (~2-hour expiry).
-  - Fix: Add `url` for permanence.
-  ```yaml
-  url: "www.myapp.com"
-  ```
-- **YAML Indentation Mistakes**
-  - Issue: Incorrect spacing or indentation.
-  - Impact: Parsing errors kill the deployment.
-  - Fix: Use a YAML linter to catch issues.
-
 ---
 
 ## 🧠 Key Takeaways for Senior Engineers & CTOs
@@ -1162,7 +1139,7 @@ If something goes wrong:
 - **Security:** Enforce secrets usage; never hardcode sensitive data.
 - **Persistence:** Always configure volumes for data-driven pods.
 - **AI Models:** Know the difference between self-hosted and API-only setups.
-- **Automation:** Test API keys and commands to keep pipelines reliable.
+- **PostgreSQL:** Always mount to `/var/lib/postgresql`, not `/var/lib/postgresql/data`.
 
 By mastering these, you'll ensure robust, secure, and efficient Nexlayer deployments. Happy coding!
 
@@ -1202,10 +1179,10 @@ application:
   registryLogin:  # Secure access to private images across multiple registries
     registry: "ghcr.io"
     username: "enterprise-team"
-    personalAccessToken: "<% REGISTRY_TOKEN %>"
+    personalAccessToken: "your-registry-token"
   pods:
     # Web-facing frontend with auto-scaling and custom domain routing
-    - name: frontend
+    - name: "frontend"
       image: "<% REGISTRY %>/enterprise-team/react-frontend:v3.2.1"
       path: "/"
       servicePorts:
@@ -1214,17 +1191,9 @@ application:
         API_URL: "http://backend.pod:8000"
         ANALYTICS_URL: "http://analytics.pod:9000"
         NEXT_PUBLIC_ENV: "production"
-      # Advanced: Custom resource allocation for scaling
-      resources:
-        requests:
-          cpu: "500m"
-          memory: "1Gi"
-        limits:
-          cpu: "2"
-          memory: "4Gi"
 
     # API Gateway for routing and load balancing
-    - name: gateway
+    - name: "gateway"
       image: "<% REGISTRY %>/enterprise-team/nginx-gateway:v1.0.0"
       path: "/gateway"
       servicePorts:
@@ -1234,7 +1203,7 @@ application:
         ANALYTICS_UPSTREAM: "analytics.pod:9000"
 
     # Microservices: Core backend with external AI API integration
-    - name: backend
+    - name: "backend"
       image: "<% REGISTRY %>/enterprise-team/fastapi-backend:v3.2.1"
       path: "/api"
       servicePorts:
@@ -1242,25 +1211,25 @@ application:
       vars:
         DB_URL: "postgresql://user:pass@db.pod:5432/platformdb"
         REDIS_URL: "redis://cache.pod:6379/0"
-        OPENAI_API_KEY: "<% SECRET_OPENAI_API_KEY %>"
-        STRIPE_API_KEY: "<% SECRET_STRIPE_API_KEY %>"
-        SENTRY_DSN: "<% SECRET_SENTRY_DSN %>"
+        OPENAI_API_KEY_PATH: "/var/secrets/openai/key.txt"
+        STRIPE_API_KEY_PATH: "/var/secrets/stripe/key.txt"
+        SENTRY_DSN_PATH: "/var/secrets/sentry/dsn.txt"
       secrets:
-        - name: openai-key
+        - name: "openai-key"
           data: "sk-secure-openai-key"
-          mountPath: "/var/secrets"
-          fileName: "openai-key.txt"
-        - name: stripe-key
+          mountPath: "/var/secrets/openai"
+          fileName: "key.txt"
+        - name: "stripe-key"
           data: "sk_test_stripe-key"
-          mountPath: "/var/secrets"
-          fileName: "stripe-key.txt"
-        - name: sentry-dsn
+          mountPath: "/var/secrets/stripe"
+          fileName: "key.txt"
+        - name: "sentry-dsn"
           data: "https://sentry.io/dsn"
-          mountPath: "/var/secrets"
-          fileName: "sentry-dsn.txt"
+          mountPath: "/var/secrets/sentry"
+          fileName: "dsn.txt"
 
     # Microservices: Analytics service for usage tracking
-    - name: analytics
+    - name: "analytics"
       image: "<% REGISTRY %>/enterprise-team/python-analytics:v1.1.0"
       servicePorts:
         - 9000
@@ -1269,7 +1238,7 @@ application:
         DB_URL: "postgresql://user:pass@db.pod:5432/platformdb"
 
     # Database: Postgres with optimized data persistence and backups
-    - name: db
+    - name: "db"
       image: "postgres:15"
       servicePorts:
         - 5432
@@ -1277,71 +1246,70 @@ application:
         POSTGRES_USER: "user"
         POSTGRES_PASSWORD: "pass"
         POSTGRES_DB: "platformdb"
-        PGDATA: "/var/lib/postgresql/data"
       volumes:
-        - name: db-data
+        - name: "db-data"
           size: "50Gi"  # Large storage for production data
-          mountPath: "/var/lib/postgresql"
+          mountPath: "/var/lib/postgresql"  # CRITICAL: Mount to parent directory
 
     # Cache: Redis cluster for high-speed caching
-    - name: cache
+    - name: "cache"
       image: "redis:7.0"
       servicePorts:
         - 6379
       vars:
         REDIS_REPLICATION_MODE: "master"
       volumes:
-        - name: redis-data
+        - name: "redis-data"
           size: "5Gi"
           mountPath: "/data"
 
     # Self-Hosted AI Model 1: Ollama for on-cluster inference
-    - name: ollama
+    - name: "ollama"
       image: "ollama/ollama:latest"
       servicePorts:
         - 11434
       vars:
         MODEL_CONFIG: "/models/config.json"
       volumes:
-        - name: ollama-data
+        - name: "ollama-data"
           size: "50Gi"  # Large storage for AI model weights
           mountPath: "/root/.ollama"
-        - name: ollama-config
+        - name: "ollama-config"
           size: "1Gi"
           mountPath: "/models"
 
     # Self-Hosted AI Model 2: Hugging Face Transformers for text generation
-    - name: transformers
+    - name: "transformers"
       image: "<% REGISTRY %>/enterprise-team/hf-transformers:v1.0.0"
       servicePorts:
         - 8501
       vars:
         HF_MODEL_NAME: "distilbert-base-uncased"
-        HF_TOKEN: "<% SECRET_HF_TOKEN %>"
+        HF_TOKEN_PATH: "/var/secrets/hf/token.txt"
       secrets:
-        - name: hf-token
+        - name: "hf-token"
           data: "hf_secure_token"
-          mountPath: "/var/secrets"
-          fileName: "hf-token.txt"
+          mountPath: "/var/secrets/hf"
+          fileName: "token.txt"
       volumes:
-        - name: transformers-data
+        - name: "transformers-data"
           size: "100Gi"  # Massive storage for large models
           mountPath: "/models"
 
     # Observability: Prometheus for monitoring
-    - name: prometheus
+    - name: "prometheus"
       image: "prom/prometheus:v2.47.0"
       servicePorts:
         - 9090
       volumes:
-        - name: prometheus-data
+        - name: "prometheus-data"
           size: "10Gi"
           mountPath: "/prometheus"
       vars:
         PROMETHEUS_CONFIG: "/etc/prometheus/prometheus.yml"
 
     # Observability: Grafana for dashboards
-    - name: grafana
+    - name: "grafana"
       image: "grafana/grafana:10.1.0"
       servicePorts:
         - 3001
@@ -1349,12 +1317,12 @@ application:
         GF_SERVER_ROOT_URL: "http://grafana.pod:3001"
         PROMETHEUS_URL: "http://prometheus.pod:9090"
       volumes:
-        - name: grafana-data
+        - name: "grafana-data"
           size: "5Gi"
           mountPath: "/var/lib/grafana"
 
     # Queue: RabbitMQ for async task processing
-    - name: rabbitmq
+    - name: "rabbitmq"
       image: "rabbitmq:3.12-management"
       servicePorts:
         - 5672  # AMQP
@@ -1363,12 +1331,12 @@ application:
         RABBITMQ_DEFAULT_USER: "guest"
         RABBITMQ_DEFAULT_PASS: "guest"
       volumes:
-        - name: rabbitmq-data
+        - name: "rabbitmq-data"
           size: "5Gi"
           mountPath: "/var/lib/rabbitmq"
 
     # Worker: Celery worker for background tasks
-    - name: celery-worker
+    - name: "celery-worker"
       image: "<% REGISTRY %>/enterprise-team/celery-worker:v1.0.0"
       servicePorts:
         - 8001
@@ -1377,5 +1345,6 @@ application:
         REDIS_URL: "redis://cache.pod:6379/2"
 ```
 
-This example highlights Nexlayer's ability to manage a complex, production-grade deployment with microservices, self-hosted AI models, observability tools, and task queues—all in a single configuration. Customize it to fit your needs and deploy with easex  Note: For GPU/TPU needs (e.g., for accelerating AI model inference with Ollama or Transformers), please contact sales team at sales@nexlayer.com(mailto:sales@nexlayer.com) to discuss tailored solutions.
+This example highlights Nexlayer's ability to manage a complex, production-grade deployment with microservices, self-hosted AI models, observability tools, and task queues—all in a single configuration. Customize it to fit your needs and deploy with ease.
 
+> Note: For GPU/TPU needs (e.g., for accelerating AI model inference with Ollama or Transformers), please contact sales team at sales@nexlayer.com to discuss tailored solutions.
